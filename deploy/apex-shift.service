@@ -3,11 +3,15 @@ Description=APEX autonomous creator shift
 After=docker.service network-online.target
 Requires=docker.service
 RequiresMountsFor=/var/lib/apex
+StartLimitIntervalSec=6h
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/apex/worker.env
 ExecStart=/bin/bash /opt/apex/deploy/run-worker shift
 ExecStop=-/usr/bin/docker stop -t 20 apex-shift
+Restart=on-failure
+RestartSec=15min
 TimeoutStartSec=2h
 TimeoutStopSec=35

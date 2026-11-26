@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import time
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -14,7 +15,30 @@ from .game import lock, save_json
 from .show import verify
 
 
+class Deferred(RuntimeError):
+    def __init__(self, deadline):
+        self.deadline = deadline
+        super().__init__("Provider requested a later attempt")
+
+
+def retry_deadline(response):
+    value = response.headers.get("Retry-After", "").strip()
+    now = time.time()
+    if value.isdecimal():
+        return now + max(1, int(value))
+    if value:
+        try:
+            return max(now + 1, parsedate_to_datetime(value).timestamp())
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return now + 900
+
+
 def expect(response, *codes):
+    if response.status_code == 429 or (
+        response.status_code == 503 and "Retry-After" in response.headers
+    ):
+        raise Deferred(retry_deadline(response))
     if response.status_code not in codes:
         raise RuntimeError(f"Provider returned HTTP {response.status_code}. Retain delivery state.")
     return response
@@ -187,14 +211,13 @@ def ig_upload(client, cfg, file, state, persist, title, description):
                 raise RuntimeError("Reconcile the previous Instagram publish before resubmission")
             state["publish_attempted"] = True
             persist()
-            response = expect(
-                client.post(
-                    f"{base}/{account}/media_publish",
-                    headers=headers,
-                    data={"creation_id": container},
-                ),
-                200,
+            raw = client.post(
+                f"{base}/{account}/media_publish", headers=headers, data={"creation_id": container}
             )
+            if raw.status_code == 429:
+                state.pop("publish_attempted")
+                persist()
+            response = expect(raw, 200)
             return response.json()["id"]
         if status != "IN_PROGRESS":
             raise RuntimeError("Instagram processing stopped: " + status)
@@ -232,8 +255,17 @@ def deliver(root, directory, platform, cfg, client):
             if record["disclosure"] not in state["description"]:
                 state["description"] = record["disclosure"] + " " + state["description"]
             persist()
+        if state.get("retry_after", 0) > time.time():
+            raise Deferred(state["retry_after"])
         upload = yt_upload if platform == "youtube" else ig_upload
-        receipt = upload(client, cfg, file, state, persist, state["title"], state["description"])
+        try:
+            receipt = upload(
+                client, cfg, file, state, persist, state["title"], state["description"]
+            )
+        except Deferred as error:
+            state["retry_after"] = error.deadline
+            persist()
+            raise
         if not isinstance(receipt, str) or not receipt:
             raise ValueError("Missing provider receipt")
         state["remote_id"] = receipt

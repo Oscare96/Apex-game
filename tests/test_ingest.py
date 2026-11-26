@@ -53,6 +53,13 @@ def test_rtmp_ingest_receives_audio_and_video(tmp_path):
         feed = LiveFeed(url)
         try:
             play(tmp_path / "state", 7, feed=feed)
+            before = feed.frames
+            feed.start_break()
+            deadline = time.monotonic() + 4
+            while feed.frames < before + 5 and time.monotonic() < deadline:
+                time.sleep(0.02)
+            feed.stop_break()
+            assert feed.frames >= before + 5
         finally:
             feed.close()
         server.communicate(timeout=10)

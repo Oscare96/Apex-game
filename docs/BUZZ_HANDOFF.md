@@ -25,7 +25,7 @@ Read [the audit](AUDIT.md), [the GCP runbook](DEPLOY_GOOGLE_CLOUD.md) and [the c
 | `d80ccff` live and audience | RTMPS encoder for Twitch and YouTube, explicit Twitch bandwidth test, own-account OAuth validation and EventSub chat. |
 | `24216cd` publishing | Resumable YouTube and Instagram clips, recovery receipts and contract tests. |
 | `8d40923` operations | Durable shift IDs, per-platform receipts, dedicated worker image, native phone layout, timer, pinned worker dependencies and container acceptance. |
-| Current tip | Deployment and provider instructions, acceptance evidence and the example highlight. The additional wire test plays a complete game into a real local FFmpeg RTMP receiver and checks both streams and the received frame count. Use the exact live branch SHA. |
+| Current tip | Deployment and provider instructions, acceptance evidence and the example highlight. The live transport sends an AI-disclosed intermission while the recording is verified, then returns to the next fare. Scheduled shifts retry failed work within a bounded window and upload journals retain provider backoff deadlines. The additional wire test plays a complete game into a real local FFmpeg RTMP receiver and checks both streams and the received frame count. Use the exact live branch SHA. |
 
 ## Runtime state
 

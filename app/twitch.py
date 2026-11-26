@@ -63,11 +63,15 @@ def login(client, cfg, root, scopes):
 
 
 def answer(command, root):
-    if command == "!apex":
+    if command in ("!learn", "apex, how did you learn?"):
+        return "I practiced pickup and delivery thousands of times. The meter rewards short routes, so I keep the moves that pay off."
+    if command in ("!joke", "apex, tell me a joke"):
+        return "My passenger asked if I knew a shortcut. I said yes, then took five thousand practice trips."
+    if command in ("!apex", "apex, are you human?"):
         return DISCLOSURE + " I learned this taxi route by playing. Ask me !stats or !game."
-    if command == "!game":
+    if command in ("!game", "apex, what are you playing?"):
         return "I play Gymnasium Taxi. One passenger, four stations, and a meter with no mercy."
-    if command == "!stats":
+    if command in ("!stats", "apex, how are you doing?"):
         path = root / "latest.json"
         if not path.exists():
             return "My first verified shift is still ahead of me."

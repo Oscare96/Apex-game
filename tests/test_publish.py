@@ -76,3 +76,29 @@ def test_instagram_upload_lost_publish_ack(tmp_path):
             ig_upload(client, IG, clip, state, lambda: None, "title", "AI")
         assert ig_upload(client, IG, clip, state, lambda: None, "title", "AI") == "container:33"
         assert sum(p.endswith("/media_publish") for p in calls) == 1
+
+
+def test_provider_backoff_is_honored_by_the_delivery_journal(tmp_path, monkeypatch):
+    from app import publish
+
+    monkeypatch.setattr(
+        publish,
+        "verify",
+        lambda _: {
+            "show_number": 1,
+            "score": 1,
+            "sha256": {"highlight.mp4": "digest"},
+            "disclosure": "AI",
+        },
+    )
+    calls = []
+
+    def throttled(*args):
+        calls.append(1)
+        publish.expect(httpx.Response(429, headers={"Retry-After": "86400"}), 200)
+
+    monkeypatch.setattr(publish, "yt_upload", throttled)
+    for _ in range(2):
+        with pytest.raises(publish.Deferred):
+            publish.deliver(tmp_path, tmp_path, "youtube", YT, None)
+    assert len(calls) == 1

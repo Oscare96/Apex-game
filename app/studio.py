@@ -177,6 +177,8 @@ def broadcast(path, realtime, feed=None):
         yield scene
         container.mux(video.encode())
         container.mux(sound.encode())
+        if realtime and feed is not None:
+            feed.start_break()
 
 
 def portrait(image, caption):
