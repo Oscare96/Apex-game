@@ -11,12 +11,13 @@ import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import gymnasium as gym
 
 from .game import GAME, HORIZON, lock, read_policy, replay, save_json, train_and_select, turns
 from .personality import DISCLOSURE
-from .studio import STATIONS, broadcast, export_media, frame, say
+from .studio import STATIONS, broadcast, export_media, frame, portrait, say
 
 SILENCE = ()
 FILES = ("trace.json", "episode.mp4", "highlight.mp4", "live.m3u8")
@@ -101,7 +102,7 @@ def previous(root):
     return {"shows": 0, "wins": 0}
 
 
-def play(root, seed, realtime=False, on_air=None, feed=None):
+def play(root, seed, realtime=False, on_air=None, feed=None, shift_fare=None):
     root = root.resolve()
     with lock(root / "show.lock"):
         if shutil.disk_usage(root).free < 256 * 1024 * 1024:
@@ -122,51 +123,62 @@ def play(root, seed, realtime=False, on_air=None, feed=None):
         elapsed = 0.0
         pickup_at = None
         rng = random.Random(seed)
-        try:
-            state, _ = env.reset(seed=seed)
-            _, _, passenger, dest = map(int, env.unwrapped.decode(state))
-            start = f"{DISCLOSURE} Next fare: {STATIONS[passenger]} to {STATIONS[dest]}."
-            with broadcast(path, realtime, feed) as scene:
+        with TemporaryDirectory(dir=path) as temp:
+            snapshots = []
+            try:
+                state, _ = env.reset(seed=seed)
+                _, _, passenger, dest = map(int, env.unwrapped.decode(state))
+                start = f"{DISCLOSURE} Next fare: {STATIONS[passenger]} to {STATIONS[dest]}."
+                with broadcast(path, realtime, feed) as scene:
 
-                def draw(state, turn, line):
-                    nonlocal elapsed
-                    if line:
-                        script.append({"at": round(elapsed, 3), "text": line})
-                    caption = line or (
-                        "Taking the fare to " + STATIONS[dest] + " station."
-                        if pickup_at is not None
-                        else "Heading to " + STATIONS[passenger] + " station."
-                    )
-                    elapsed += scene(
-                        frame(env, state, turn, score, caption), say(line) if line else SILENCE
-                    )
-                    if on_air:
-                        on_air(path)
+                    def draw(state, turn, line):
+                        nonlocal elapsed
+                        if line:
+                            script.append({"at": round(elapsed, 3), "text": line})
+                        caption = line or (
+                            "Taking the fare to " + STATIONS[dest] + " station."
+                            if pickup_at is not None
+                            else "Heading to " + STATIONS[passenger] + " station."
+                        )
+                        image = frame(env, state, turn, score, caption)
+                        shot = Path(temp) / f"turn-{len(snapshots):03}.png"
+                        portrait(image, caption).save(shot)
+                        duration = scene(image, say(line) if line else SILENCE)
+                        snapshots.append((elapsed, duration, shot))
+                        elapsed += duration
+                        if on_air:
+                            on_air(path)
 
-                draw(state, None, start)
-                for t in turns(env, state, q):
-                    trace.append(asdict(t))
-                    score += t.reward
-                    line = None
-                    if t.terminated:
-                        line = rng.choice(LINES["dropoff"])
-                    elif t.truncated:
-                        line = rng.choice(LINES["failure"])
-                    elif t.action == 4 and t.reward != -10:
-                        pickup_at = elapsed
-                        line = rng.choice(LINES["pickup"])
-                    draw(t.state, t, line)
-        finally:
-            env.close()
-        replay(seed, trace)
-        save_json(path / "trace.json", trace)
-        export_media(path, max(0, pickup_at if pickup_at is not None else elapsed - 12))
+                    draw(state, None, start)
+                    for t in turns(env, state, q):
+                        trace.append(asdict(t))
+                        score += t.reward
+                        line = None
+                        if t.terminated:
+                            line = rng.choice(LINES["dropoff"])
+                        elif t.truncated:
+                            line = rng.choice(LINES["failure"])
+                        elif t.action == 4 and t.reward != -10:
+                            pickup_at = elapsed
+                            line = rng.choice(LINES["pickup"])
+                        draw(t.state, t, line)
+            finally:
+                env.close()
+            replay(seed, trace)
+            save_json(path / "trace.json", trace)
+            export_media(
+                path,
+                pickup_at if pickup_at is not None else max(0, elapsed - 12),
+                snapshots,
+                elapsed,
+            )
         record = {
             "format": 1,
             "game": GAME,
             "show": path.name,
             "seed": seed,
             "policy": policy["sha256"],
+            "shift_fare": shift_fare,
             "show_number": history["shows"] + 1,
             "career_wins": history["wins"] + int(trace[-1]["terminated"]),
             "disclosure": DISCLOSURE,

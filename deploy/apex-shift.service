@@ -1,0 +1,12 @@
+[Unit]
+Description=APEX autonomous creator shift
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/apex/worker.env
+ExecStart=/bin/bash /opt/apex/deploy/run-worker shift
+ExecStop=-/usr/bin/docker stop -t 20 apex-shift
+TimeoutStartSec=2h
+TimeoutStopSec=35

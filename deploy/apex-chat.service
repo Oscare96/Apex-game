@@ -1,0 +1,17 @@
+[Unit]
+Description=APEX Twitch EventSub chat
+After=docker.service network-online.target
+Requires=docker.service
+StartLimitIntervalSec=900
+StartLimitBurst=4
+
+[Service]
+EnvironmentFile=/etc/apex/worker.env
+ExecStart=/bin/bash /opt/apex/deploy/run-worker chat
+ExecStop=-/usr/bin/docker stop -t 10 apex-chat
+Restart=on-failure
+RestartSec=90
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

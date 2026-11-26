@@ -1,0 +1,10 @@
+[Unit]
+Description=Run one APEX shift each day
+
+[Timer]
+OnCalendar=*-*-* 18:00:00 UTC
+Persistent=true
+Unit=apex-shift.service
+
+[Install]
+WantedBy=timers.target

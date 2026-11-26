@@ -179,7 +179,27 @@ def broadcast(path, realtime, feed=None):
         container.mux(sound.encode())
 
 
-def export_media(path, highlight_start):
+def portrait(image, caption):
+    # Preserve original positions and walls. Reflow the same scene for a phone.
+    canvas = Image.new("RGB", (720, 1280), INK)
+    canvas.paste(image.crop((42, 15, 528, 91)).resize((657, 103)), (28, 20))
+    canvas.paste(image.crop((54, 118, 500, 564)).resize((640, 640)), (40, 148))
+    canvas.paste(image.crop((540, 136, 1210, 388)).resize((670, 252)), (32, 805))
+    draw = ImageDraw.Draw(canvas)
+    draw.rounded_rectangle((24, 1075, 696, 1254), radius=18, fill="#20273b")
+    draw.text((46, 1092), "APEX  /  SYNTHETIC VOICE", font=font(21, True), fill=LIME)
+    lines = [""]
+    for word in caption.split():
+        line = (lines[-1] + " " + word).strip()
+        if draw.textlength(line, font=font(31)) > 620:
+            lines.append(word)
+        else:
+            lines[-1] = line
+    draw.multiline_text((46, 1132), "\n".join(lines), font=font(31), fill=PAPER, spacing=5)
+    return canvas
+
+
+def export_media(path, highlight_start, scenes, elapsed):
     ff = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y"]
     subprocess.run(
         ff
@@ -195,24 +215,40 @@ def export_media(path, highlight_start):
         check=True,
         timeout=120,
     )
-    # Keep the board, score and disclosure visible on the vertical canvas.
+    selected = [s for s in scenes if s[0] + 0.001 >= highlight_start]
+    inputs = []
+    for _, duration, png in selected:
+        inputs.extend([f"file '{png.name}'", f"duration {duration:.6f}"])
+    inputs.append(f"file '{selected[-1][2].name}'")
+    manifest = selected[0][2].parent / "frames.txt"
+    manifest.write_text("\n".join(inputs) + "\n")
     subprocess.run(
         ff
         + [
+            "-f",
+            "concat",
+            "-safe",
+            "1",
+            "-i",
+            str(manifest),
             "-ss",
-            f"{highlight_start:.3f}",
+            f"{selected[0][0]:.6f}",
             "-i",
             str(path / "episode.mp4"),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-t",
+            f"{elapsed - selected[0][0]:.6f}",
             "-vf",
-            "scale=720:406,pad=720:1280:0:(oh-ih)/2:color=0x0c1020",
+            "fps=30,format=yuv420p",
             "-c:v",
             "libx264",
             "-threads",
             "2",
             "-preset",
             "veryfast",
-            "-pix_fmt",
-            "yuv420p",
             "-c:a",
             "aac",
             "-movflags",

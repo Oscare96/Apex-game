@@ -1,0 +1,7 @@
+{
+  "fares": 3,
+  "training_episodes": 250,
+  "broadcast": "off",
+  "twitch_title": false,
+  "publish": []
+}

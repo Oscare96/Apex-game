@@ -11,3 +11,6 @@ dev = ["pytest>=8,<10", "ruff>=0.8,<1"]
 pythonpath = ["."]
 [tool.ruff]
 line-length = 100
+
+[tool.setuptools]
+packages = ["app"]

@@ -13,7 +13,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
-      - run: pip install -e '.[dev,show]'
+      - run: pip install -c deploy/requirements.lock -e '.[dev,show]'
       - run: ruff check app tests
       - run: pytest -q
       - run: docker build -t apex:test .
+      - run: docker build -f Dockerfile.show -t apex-show:test .
+      - run: bash deploy/container-acceptance.sh apex-show:test

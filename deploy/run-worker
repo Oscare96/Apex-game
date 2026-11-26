@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+: "${APEX_IMAGE:?Set APEX_IMAGE in /etc/apex/worker.env}"
+mode=${1:-shift}
+shift || true
+mounts=(--mount type=bind,src=/var/lib/apex,dst=/var/lib/apex
+        --mount type=bind,src=/etc/apex/shift.json,dst=/etc/apex/shift.json,readonly)
+credentials=()
+network=none
+if [[ -n ${APEX_SECRET_VERSION:-} ]]; then
+  [[ ${APEX_SECRET_VERSION} =~ ^[1-9][0-9]*$ ]]
+  : "${APEX_PROJECT:?Set the dedicated APEX project ID}"
+  install -d -m 0700 /run/apex
+  tmp=$(mktemp /run/apex/accounts.XXXXXX)
+  trap 'rm -f "$tmp"' EXIT
+  gcloud secrets versions access "$APEX_SECRET_VERSION" --secret=apex-accounts \
+    --project="$APEX_PROJECT" --out-file="$tmp" --quiet
+  chown 10001:10001 "$tmp"
+  chmod 0400 "$tmp"
+  mv -f "$tmp" /run/apex/accounts.json
+  mounts+=(--mount type=bind,src=/run/apex/accounts.json,dst=/run/secrets/accounts.json,readonly)
+  credentials=(--credentials /run/secrets/accounts.json)
+  network=bridge
+fi
+case "$mode" in
+  shift) cmd=(app.shift --root /var/lib/apex --config /etc/apex/shift.json) ;;
+  chat)
+    [[ ${#credentials[@]} -gt 0 ]] || { echo "APEX channel credentials required" >&2; exit 1; }
+    cmd=(app.twitch chat --root /var/lib/apex) ;;
+  *) echo "Expected shift or chat" >&2; exit 2 ;;
+esac
+exec docker run --rm --init --name "apex-$mode" --read-only --tmpfs /tmp:rw,nosuid,nodev,size=256m \
+  --cap-drop ALL --security-opt no-new-privileges --cpus 2 --memory 2g --pids-limit 256 \
+  --network "$network" "${mounts[@]}" "$APEX_IMAGE" python -m "${cmd[@]}" "${credentials[@]}" "$@"

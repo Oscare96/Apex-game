@@ -1,0 +1,14 @@
+FROM python:3.12-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 apex
+WORKDIR /srv
+COPY pyproject.toml ./
+COPY app ./app
+COPY deploy/requirements.lock /tmp/requirements.lock
+RUN pip install --no-cache-dir -c /tmp/requirements.lock '.[show]'
+COPY deploy/shift.json /etc/apex/shift.json
+RUN install -d -m 0700 -o apex -g apex /var/lib/apex
+USER 10001:10001
+CMD ["python","-m","app.shift","--root","/var/lib/apex","--config","/etc/apex/shift.json"]

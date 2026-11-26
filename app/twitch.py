@@ -167,6 +167,7 @@ def main():
     args = parser.parse_args()
     root = args.root
     cfg = json.loads(args.credentials.read_text())
+    cfg = cfg.get("twitch", cfg)
     owner = cfg["broadcaster_id"]
     if not isinstance(owner, str) or not owner.isdigit():
         parser.error("Expected APEX broadcaster numeric user ID as a string")
