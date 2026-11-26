@@ -2,6 +2,7 @@
 set -euo pipefail
 umask 077
 : "${APEX_IMAGE:?Set APEX_IMAGE in /etc/apex/worker.env}"
+mountpoint -q /var/lib/apex || { echo "APEX state disk is not mounted" >&2; exit 1; }
 mode=${1:-shift}
 shift || true
 mounts=(--mount type=bind,src=/var/lib/apex,dst=/var/lib/apex

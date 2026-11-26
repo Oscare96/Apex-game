@@ -2,6 +2,7 @@
 Description=APEX Twitch EventSub chat
 After=docker.service network-online.target
 Requires=docker.service
+RequiresMountsFor=/var/lib/apex
 StartLimitIntervalSec=900
 StartLimitBurst=4
 

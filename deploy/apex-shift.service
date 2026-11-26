@@ -2,6 +2,7 @@
 Description=APEX autonomous creator shift
 After=docker.service network-online.target
 Requires=docker.service
+RequiresMountsFor=/var/lib/apex
 
 [Service]
 Type=oneshot
