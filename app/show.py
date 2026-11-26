@@ -101,7 +101,7 @@ def previous(root):
     return {"shows": 0, "wins": 0}
 
 
-def play(root, seed, realtime=False, on_air=None):
+def play(root, seed, realtime=False, on_air=None, feed=None):
     root = root.resolve()
     with lock(root / "show.lock"):
         if shutil.disk_usage(root).free < 256 * 1024 * 1024:
@@ -126,7 +126,7 @@ def play(root, seed, realtime=False, on_air=None):
             state, _ = env.reset(seed=seed)
             _, _, passenger, dest = map(int, env.unwrapped.decode(state))
             start = f"{DISCLOSURE} Next fare: {STATIONS[passenger]} to {STATIONS[dest]}."
-            with broadcast(path, realtime) as scene:
+            with broadcast(path, realtime, feed) as scene:
 
                 def draw(state, turn, line):
                     nonlocal elapsed
@@ -201,6 +201,10 @@ def main():
     runner = cmd.add_parser("play")
     runner.add_argument("--seed", type=int, default=None)
     runner.add_argument("--realtime", action="store_true")
+    live = cmd.add_parser("broadcast")
+    live.add_argument("platform", choices=["twitch-test", "twitch", "youtube"])
+    live.add_argument("--credentials", type=Path, required=True)
+    live.add_argument("--fares", type=int, choices=range(1, 31), default=1)
     verify_cmd = cmd.add_parser("verify")
     verify_cmd.add_argument("directory", type=Path)
     args = parser.parse_args()
@@ -209,6 +213,26 @@ def main():
         print(json.dumps(report))
         if not (args.root / "policy.json").exists():
             parser.exit(1, "No policy cleared the benchmark.\n")
+    elif args.command == "broadcast":
+        import av
+
+        from .live import LiveFeed, destination
+
+        with lock(args.root / "broadcast.lock"), av.logging.Capture(local=False):
+            feed = LiveFeed(destination(args.platform, args.credentials))
+            try:
+                for _ in range(args.fares):
+                    path = play(args.root, secrets.randbelow(2**30), True, feed=feed)
+                    print(path, flush=True)
+                    if feed.failed:
+                        break
+            finally:
+                feed.close()
+            if feed.failed or not feed.frames:
+                parser.exit(
+                    1,
+                    "RTMPS transport failed. Verify the local recording and provider dashboard.\n",
+                )
     elif args.command == "verify":
         print(json.dumps(verify(args.directory)))
     else:

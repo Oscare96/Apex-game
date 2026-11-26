@@ -122,7 +122,7 @@ def frame(env, state, turn, points, caption):
 
 
 @contextmanager
-def broadcast(path, realtime):
+def broadcast(path, realtime, feed=None):
     """Publish playable two-second segments during the episode."""
     opts = {
         "hls_time": "2",
@@ -167,6 +167,8 @@ def broadcast(path, realtime):
                 wave.pts = count * SAMPLES
                 wave.time_base = Fraction(1, RATE)
                 container.mux(sound.encode(wave))
+                if feed is not None:
+                    feed.write(template, wave)
                 count += 1
                 if realtime:
                     time.sleep(max(0, start + count / FPS - time.monotonic()))
