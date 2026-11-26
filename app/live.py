@@ -80,7 +80,7 @@ class LiveFeed:
             draw.text((64, 216), "APEX   /   AI GAMING CHARACTER", font=font(34, True), fill=LIME)
             draw.text((64, 288), "Reviewing the replay", font=font(64, True), fill=PAPER)
             draw.text(
-                (64, 400), "The fare is over. Checking the recording.", font=font(28), fill=PAPER
+                (64, 400), "That round is over. Checking the recording.", font=font(28), fill=PAPER
             )
             frame = av.VideoFrame.from_image(image).reformat(format="yuv420p")
             wave = av.AudioFrame.from_ndarray(

@@ -25,7 +25,8 @@ Read [the audit](AUDIT.md), [the GCP runbook](DEPLOY_GOOGLE_CLOUD.md) and [the c
 | `d80ccff` live and audience | RTMPS encoder for Twitch and YouTube, explicit Twitch bandwidth test, own-account OAuth validation and EventSub chat. |
 | `24216cd` publishing | Resumable YouTube and Instagram clips, recovery receipts and contract tests. |
 | `8d40923` operations | Durable shift IDs, per-platform receipts, dedicated worker image, native phone layout, timer, pinned worker dependencies and container acceptance. |
-| Current tip | Deployment and provider instructions, acceptance evidence and the example highlight. The live transport sends an AI-disclosed intermission while the recording is verified, then returns to the next fare. Scheduled shifts retry failed work within a bounded window and upload journals retain provider backoff deadlines. The additional wire test plays a complete game into a real local FFmpeg RTMP receiver and checks both streams and the received frame count. Use the exact live branch SHA. |
+| `0113baf` / `6e4edc6` | Operator handoff, playable preview, RTMP receiver test, intermission frames and rate-limit recovery. |
+| Current tip | Two-game rotation, game-aware replays, dedicated board-game strategy and the same media and account pipeline for both titles. The live transport sends an AI-disclosed intermission while the recording is verified, then returns to the next fare. Scheduled shifts retry failed work within a bounded window and upload journals retain provider backoff deadlines. The additional wire test plays a complete game into a real local FFmpeg RTMP receiver and checks both streams and the received frame count. Use the exact live branch SHA. |
 
 ## Runtime state
 
@@ -33,7 +34,7 @@ Read [the audit](AUDIT.md), [the GCP runbook](DEPLOY_GOOGLE_CLOUD.md) and [the c
 |---|---|
 | `policy.json`, `benchmark.json` | Compatible incumbent Q table, digest, training cursor and latest benchmark. Inference uses only the promoted table. Damaged policies stop the run. |
 | `shows/<id>/manifest.json` | Completion marker written after replay, media decode and checksums. Directories without it are incomplete and are ineligible for publishing. |
-| `shows/<id>/trace.json` and media | Every action, observation, reward, termination or timeout; playlist, HLS segments, recording and generated highlight. |
+| `shows/<id>/trace.json` and media | Taxi actions, states and rewards or the Four in a Row board after each legal move; playlist, HLS segments, recording and generated highlight. |
 | `shifts/<id>.json` | Frozen shift configuration, completed fares, selected destination receipts and transport state. A live attempt marked started requires provider reconciliation after interruption. |
 | `deliveries/` | Sensitive resumable session or container state and confirmed remote IDs keyed by destination, account and clip digest. Preserve on rollback. |
 | `latest.json`, `audience.sqlite` | Latest completed shift statistics and a bounded chat reply ledger. The ledger stores hashed IDs and timestamps; it contains no message text. |
@@ -59,7 +60,7 @@ After an unclean stop, inspect the latest manifest even if `latest.json` predate
 | External accounts | Buzz must supply APEX-specific credentials, scopes, eligible accounts and an approved posting cadence. Follow the platform-specific tests. Remote channel playback, replies, post visibility, 24-hour stability and stream reconnect under loss remain unverified. |
 | GTA or any retail title | No supported interface or authorization for the proposed automated use was established. Capture rights, automation permission, licensing and supported environment must be verified for each title first. |
 | TikTok | Unattended internal posting conflicts with current Direct Post requirements. Vertical exports are ready for creator review. |
-| Personality and games | Taxi is the first learned game. The original driving simulator also runs. The character uses authored event-driven humor and command-based Twitch replies. Open-ended dialogue, game-independent visual control, long-form show direction and additional authorized games remain future work. |
+| Personality and games | Taxi uses learned Q values. Four in a Row uses four-ply alpha-beta search against a separate tactical CPU. The original driving simulator also runs. The character uses authored event-driven humor and Twitch command replies and a small set of natural-language questions. Open-ended dialogue, game-independent visual control, long-form show direction and additional authorized games remain future work. |
 | OwnerEasy | No production systems or customer data were accessed. Shared design ideas include replayable media jobs, disclosure and durable publishing receipts. A future integration needs an independently versioned contract and separate APEX credentials. |
 
 For the next engineering batch, use the first real private broadcast and restore drill to measure audio/video drift, session continuity between fares, CPU usage, storage per hour and approved monthly spend. Attach measured results to the deployed SHA.

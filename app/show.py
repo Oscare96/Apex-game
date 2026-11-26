@@ -9,12 +9,14 @@ import shutil
 import subprocess
 import time
 import uuid
+from contextlib import closing
 from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import gymnasium as gym
 
+from . import four
 from .game import GAME, HORIZON, lock, read_policy, replay, save_json, train_and_select, turns
 from .personality import DISCLOSURE
 from .studio import STATIONS, broadcast, export_media, frame, portrait, say
@@ -65,10 +67,23 @@ def media_files(path):
     return sorted([*FILES, *(p.name for p in path.glob("part-*.ts"))])
 
 
+def result_for(game, seed, trace):
+    if game == four.GAME:
+        return four.replay(seed, trace)
+    if game != GAME:
+        raise ValueError("Unknown game")
+    replay(seed, trace)
+    return int(trace[-1]["terminated"]), sum(t["reward"] for t in trace)
+
+
 def verify(path, record=None):
     if record is None:
         record = json.loads((path / "manifest.json").read_text())
-    if record["game"] != GAME or record["format"] != 1 or record["disclosure"] != DISCLOSURE:
+    if (
+        record["game"] not in (GAME, four.GAME)
+        or record["format"] != 1
+        or record["disclosure"] != DISCLOSURE
+    ):
         raise ValueError("Invalid show manifest")
     if set(media_files(path)) != set(record["sha256"]):
         raise ValueError("Incomplete artifact set")
@@ -76,12 +91,8 @@ def verify(path, record=None):
         if checksum(path / name) != record["sha256"][name]:
             raise ValueError(f"Artifact digest mismatch: {name}")
     data = json.loads((path / "trace.json").read_text())
-    replay(record["seed"], data)
-    if (
-        record["wins"] != int(data[-1]["terminated"])
-        or record["steps"] != len(data)
-        or record["score"] != sum(t["reward"] for t in data)
-    ):
+    wins, score = result_for(record["game"], record["seed"], data)
+    if record["wins"] != wins or record["steps"] != len(data) or record["score"] != score:
         raise ValueError("Score does not match replay")
     hls = (path / "live.m3u8").read_text().splitlines()
     if "#EXT-X-ENDLIST" not in hls or {x for x in hls if x and not x.startswith("#")} != {
@@ -102,90 +113,102 @@ def previous(root):
     return {"shows": 0, "wins": 0}
 
 
-def play(root, seed, realtime=False, on_air=None, feed=None, shift_fare=None):
+def taxi_scenes(seed, q):
+    rng = random.Random(seed)
+    score = 0
+    env = gym.make(GAME, max_episode_steps=HORIZON)
+    try:
+        state, _ = env.reset(seed=seed)
+        _, _, passenger, dest = map(int, env.unwrapped.decode(state))
+        line = f"{DISCLOSURE} Next fare: {STATIONS[passenger]} to {STATIONS[dest]}."
+        yield frame(env, state, None, score, line), line, line, None, False
+        aboard = False
+        for turn in turns(env, state, q):
+            score += turn.reward
+            pickup = turn.action == 4 and turn.reward != -10
+            aboard |= pickup
+            line = None
+            if turn.terminated:
+                line = rng.choice(LINES["dropoff"])
+            elif turn.truncated:
+                line = rng.choice(LINES["failure"])
+            elif pickup:
+                line = rng.choice(LINES["pickup"])
+            caption = line or (
+                "Taking the fare to " + STATIONS[dest] + " station."
+                if aboard
+                else "Heading to " + STATIONS[passenger] + " station."
+            )
+            yield frame(env, turn.state, turn, score, caption), caption, line, asdict(turn), pickup
+    finally:
+        env.close()
+
+
+def play(root, seed, realtime=False, on_air=None, feed=None, shift_fare=None, game=GAME):
     root = root.resolve()
     with lock(root / "show.lock"):
         if shutil.disk_usage(root).free < 256 * 1024 * 1024:
             raise RuntimeError("Less than 256 MiB free for media")
         history = previous(root)
-        policy_path = root / "policy.json"
-        if not policy_path.exists():
-            train_and_select(root)
-        policy, q = read_policy(policy_path)
+        if game == GAME:
+            policy_path = root / "policy.json"
+            if not policy_path.exists():
+                train_and_select(root)
+            policy, q = read_policy(policy_path)
+            policy_id = policy["sha256"]
+            scenes = taxi_scenes(seed, q)
+        elif game == four.GAME:
+            policy_id = four.POLICY
+            scenes = four.scenes(seed)
+        else:
+            raise ValueError("Unknown game")
         path = (
             root / "shows" / f"{history['shows'] + 1:010d}-{time.time_ns()}-{uuid.uuid4().hex[:8]}"
         )
         path.mkdir(parents=True)
-        env = gym.make(GAME, max_episode_steps=HORIZON)
         script = []
         trace = []
-        score = 0
         elapsed = 0.0
-        pickup_at = None
-        rng = random.Random(seed)
-        with TemporaryDirectory(dir=path) as temp:
+        highlight_at = None
+        with TemporaryDirectory(dir=path) as temp, closing(scenes):
             snapshots = []
-            try:
-                state, _ = env.reset(seed=seed)
-                _, _, passenger, dest = map(int, env.unwrapped.decode(state))
-                start = f"{DISCLOSURE} Next fare: {STATIONS[passenger]} to {STATIONS[dest]}."
-                with broadcast(path, realtime, feed) as scene:
-
-                    def draw(state, turn, line):
-                        nonlocal elapsed
-                        if line:
-                            script.append({"at": round(elapsed, 3), "text": line})
-                        caption = line or (
-                            "Taking the fare to " + STATIONS[dest] + " station."
-                            if pickup_at is not None
-                            else "Heading to " + STATIONS[passenger] + " station."
-                        )
-                        image = frame(env, state, turn, score, caption)
-                        shot = Path(temp) / f"turn-{len(snapshots):03}.png"
-                        portrait(image, caption).save(shot)
-                        duration = scene(image, say(line) if line else SILENCE)
-                        snapshots.append((elapsed, duration, shot))
-                        elapsed += duration
-                        if on_air:
-                            on_air(path)
-
-                    draw(state, None, start)
-                    for t in turns(env, state, q):
-                        trace.append(asdict(t))
-                        score += t.reward
-                        line = None
-                        if t.terminated:
-                            line = rng.choice(LINES["dropoff"])
-                        elif t.truncated:
-                            line = rng.choice(LINES["failure"])
-                        elif t.action == 4 and t.reward != -10:
-                            pickup_at = elapsed
-                            line = rng.choice(LINES["pickup"])
-                        draw(t.state, t, line)
-            finally:
-                env.close()
-            replay(seed, trace)
+            with broadcast(path, realtime, feed) as scene:
+                for image, caption, line, turn, highlight in scenes:
+                    if line:
+                        script.append({"at": round(elapsed, 3), "text": line})
+                    if turn:
+                        trace.append(turn)
+                    if highlight:
+                        highlight_at = elapsed
+                    shot = Path(temp) / f"turn-{len(snapshots):03}.png"
+                    portrait(image, caption).save(shot)
+                    duration = scene(image, say(line) if line else SILENCE)
+                    snapshots.append((elapsed, duration, shot))
+                    elapsed += duration
+                    if on_air:
+                        on_air(path)
+            wins, score = result_for(game, seed, trace)
             save_json(path / "trace.json", trace)
             export_media(
                 path,
-                pickup_at if pickup_at is not None else max(0, elapsed - 12),
+                highlight_at if highlight_at is not None else max(0, elapsed - 12),
                 snapshots,
                 elapsed,
             )
         record = {
             "format": 1,
-            "game": GAME,
+            "game": game,
             "show": path.name,
             "seed": seed,
-            "policy": policy["sha256"],
+            "policy": policy_id,
             "shift_fare": shift_fare,
             "show_number": history["shows"] + 1,
-            "career_wins": history["wins"] + int(trace[-1]["terminated"]),
+            "career_wins": history["wins"] + wins,
             "disclosure": DISCLOSURE,
             "script": script,
             "score": score,
             "steps": len(trace),
-            "wins": int(trace[-1]["terminated"]),
+            "wins": wins,
             "seconds": round(elapsed, 3),
             "sha256": {name: checksum(path / name) for name in media_files(path)},
         }
@@ -211,11 +234,13 @@ def main():
     trainer = cmd.add_parser("train")
     trainer.add_argument("--episodes", type=int, default=5000)
     runner = cmd.add_parser("play")
+    runner.add_argument("--game", choices=(GAME, four.GAME), default=GAME)
     runner.add_argument("--seed", type=int, default=None)
     runner.add_argument("--realtime", action="store_true")
     live = cmd.add_parser("broadcast")
     live.add_argument("platform", choices=["twitch-test", "twitch", "youtube"])
     live.add_argument("--credentials", type=Path, required=True)
+    live.add_argument("--game", choices=(GAME, four.GAME), default=GAME)
     live.add_argument("--fares", type=int, choices=range(1, 31), default=1)
     verify_cmd = cmd.add_parser("verify")
     verify_cmd.add_argument("directory", type=Path)
@@ -234,7 +259,9 @@ def main():
             feed = LiveFeed(destination(args.platform, args.credentials))
             try:
                 for _ in range(args.fares):
-                    path = play(args.root, secrets.randbelow(2**30), True, feed=feed)
+                    path = play(
+                        args.root, secrets.randbelow(2**30), True, feed=feed, game=args.game
+                    )
                     print(path, flush=True)
                     if feed.failed:
                         break
@@ -253,6 +280,7 @@ def main():
                 args.root,
                 secrets.randbelow(2**30) if args.seed is None else args.seed,
                 args.realtime,
+                game=args.game,
             )
         )
 

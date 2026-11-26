@@ -86,6 +86,7 @@ def test_provider_backoff_is_honored_by_the_delivery_journal(tmp_path, monkeypat
         "verify",
         lambda _: {
             "show_number": 1,
+            "game": "Taxi-v3",
             "score": 1,
             "sha256": {"highlight.mp4": "digest"},
             "disclosure": "AI",

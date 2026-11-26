@@ -18,8 +18,10 @@ from app.show import verify
 root=Path("/var/lib/apex")
 markers=sorted(root.glob("shows/*/manifest.json"))
 assert len(markers)==3
-assert all(verify(p.parent)["wins"] == 1 for p in markers)
+records=[verify(p.parent) for p in markers]
+assert [r["game"] for r in records]==["Taxi-v3","FourInARow-v1","Taxi-v3"]
+assert all(r["wins"] for r in records if r["game"]=="Taxi-v3")
 journal=json.loads((root/"shifts/acceptance.json").read_text())
 assert journal["complete"] and journal["receipts"] == {} and len(journal["shows"])==3
-print("Verified 3 wins, media integrity, restart deduplication, and offline execution.")
+print("Verified both games across 3 episodes, media integrity, restart deduplication, and offline execution.")
 '

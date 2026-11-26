@@ -80,7 +80,7 @@ sudo bash "$CHECKOUT/deploy/container-acceptance.sh" "apex-worker:$RELEASE"
 sudo docker image inspect "apex-worker:$RELEASE" --format '{{.Id}}'
 ```
 
-The acceptance command runs with networking disabled. It checks the runtime UID, plays three fares, retries the same shift, verifies all clips and expects exactly three verified wins and zero external receipts. Stop if it fails.
+The acceptance command runs with networking disabled. It checks the runtime UID, plays three episodes in the Taxi / Four in a Row / Taxi rotation, retries the same shift, verifies all clips and expects two successful taxi deliveries, a legal completed board game and zero external receipts. Stop if it fails.
 
 ## 4. Activate the offline pilot
 
@@ -101,7 +101,7 @@ sudo systemctl enable --now apex-shift.timer
 systemctl list-timers apex-shift.timer
 ```
 
-The first real shift uses its UTC date as the ID. Running the service twice that day resumes the same shift. Expect three manifests, one 720p recording and one 720×1280 highlight per fare. Enable external accounts only through the [channel acceptance procedure](CHANNELS.md).
+The first real shift uses its UTC date as the ID. Running the service twice that day resumes the same shift. Expect three manifests, one 720p recording and one 720×1280 highlight per episode. Enable external accounts only through the [channel acceptance procedure](CHANNELS.md).
 
 ## 5. Protect state, monitor and recover
 

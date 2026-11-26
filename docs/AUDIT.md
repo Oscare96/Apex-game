@@ -26,3 +26,7 @@ Use disclosure, captions, media receipts and retries as design ideas from OwnerE
 ## External boundaries
 
 Twitch supports [stream ingest](https://dev.twitch.tv/docs/video-broadcast/) and [EventSub and chat replies](https://dev.twitch.tv/docs/chat/send-receive-messages/). Account setup and acceptance on the actual APEX channel are separate from local tests. [YouTube](https://developers.google.com/youtube/terms/required-minimum-functionality) imposes client and upload requirements. [Instagram](https://developers.facebook.com/docs/instagram-platform/content-publishing/) requires a supported professional account and appropriate permissions. [TikTok](https://developers.tiktok.com/doc/content-sharing-guidelines) requires creator control including a manual privacy selection; its internal account-uploader use case is also excluded. Treat unrestricted hands-off TikTok publishing as blocked. GTA integration has no established automation permission or supported adapter in this repository.
+
+## Second playable title
+
+After the first creator pipeline cleared its tests, a second batch added an original implementation of Four in a Row. It uses a seven-column gravity board, a four-ply alpha-beta player and a separate seeded tactical opponent. The replay verifier reconstructs every move and checks gravity, turns and the outcome. The game supplies its own artwork and uses the same disclosure, narration, streaming, highlights and account adapters as Taxi. Its win count measures board outcomes; only the Taxi benchmark measures learned performance.

@@ -1,5 +1,6 @@
 {
   "fares": 3,
+  "games": ["Taxi-v3", "FourInARow-v1"],
   "training_episodes": 250,
   "broadcast": "off",
   "twitch_title": false,

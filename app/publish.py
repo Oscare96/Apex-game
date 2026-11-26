@@ -247,10 +247,10 @@ def deliver(root, directory, platform, cfg, client):
 
         if "title" not in state:
             state["title"] = cfg.get(
-                "title", f"APEX night shift #{record['show_number']} | AI plays Taxi"
+                "title", f"APEX game night #{record['show_number']} | {record['game']}"
             )
             state["description"] = cfg.get(
-                "description", record["disclosure"] + f" Taxi score: {record['score']}."
+                "description", record["disclosure"] + f" Game score: {record['score']}."
             )
             if record["disclosure"] not in state["description"]:
                 state["description"] = record["disclosure"] + " " + state["description"]

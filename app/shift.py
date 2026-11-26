@@ -11,7 +11,8 @@ from pathlib import Path
 import av
 import httpx
 
-from .game import lock, save_json, train_and_select
+from . import four
+from .game import GAME, lock, save_json, train_and_select
 from .live import HOSTS, LiveFeed, destination
 from .publish import deliver
 from .show import play, verify
@@ -19,13 +20,25 @@ from .twitch import HELIX, checked, login
 
 
 def validate(plan):
-    unknown = set(plan) - {"fares", "training_episodes", "broadcast", "publish", "twitch_title"}
+    unknown = set(plan) - {
+        "fares",
+        "training_episodes",
+        "broadcast",
+        "publish",
+        "twitch_title",
+        "games",
+    }
+    games = plan.get("games", [GAME])
     count = plan.get("fares", 1)
     training = plan.get("training_episodes", 250)
     live = plan.get("broadcast", "off")
     publish = plan.get("publish", [])
     if (
         unknown
+        or not isinstance(games, list)
+        or not games
+        or len(games) > 30
+        or any(g not in (GAME, four.GAME) for g in games)
         or type(count) is not int
         or not 1 <= count <= 30
         or type(training) is not int
@@ -92,6 +105,10 @@ def shift(root, shift_id, plan, credentials=None):
             if platforms or plan.get("twitch_title")
             else None
         )
+        games = plan.get("games", [GAME])
+        if not saved.get("trained") and GAME not in games:
+            saved["trained"] = {"strategy": four.POLICY}
+            checkpoint()
         if not saved.get("trained"):
             report = train_and_select(root, training if (root / "policy.json").exists() else 5000)
             if not (root / "policy.json").exists():
@@ -106,7 +123,7 @@ def shift(root, shift_id, plan, credentials=None):
                     HELIX + "/channels",
                     params={"broadcaster_id": twitch["broadcaster_id"]},
                     headers=headers,
-                    json={"title": "APEX | AI taxi driver on the night shift"},
+                    json={"title": "APEX | Autonomous AI game night"},
                 ),
                 204,
             )
@@ -136,10 +153,22 @@ def shift(root, shift_id, plan, credentials=None):
                         directory = manifest.parent
                         break
                 if directory is None:
-                    directory = play(root, seed, realtime=bool(feed), feed=feed, shift_fare=key)
+                    directory = play(
+                        root,
+                        seed,
+                        realtime=bool(feed),
+                        feed=feed,
+                        shift_fare=key,
+                        game=games[i % len(games)],
+                    )
                 record = verify(directory)
                 saved["shows"].append(
-                    {"directory": directory.name, "score": record["score"], "wins": record["wins"]}
+                    {
+                        "directory": directory.name,
+                        "score": record["score"],
+                        "wins": record["wins"],
+                        "game": record["game"],
+                    }
                 )
                 checkpoint()
                 if feed and feed.failed:
@@ -154,7 +183,15 @@ def shift(root, shift_id, plan, credentials=None):
                 )
             saved["broadcast_state"] = "encoder_finished"
             checkpoint()
-        best = max(saved["shows"], key=lambda s: (s["wins"], s["score"]))
+        titles = list(dict.fromkeys(s.get("game", GAME) for s in saved["shows"]))
+        try:
+            day = datetime.strptime(shift_id, "%Y-%m-%d").date().toordinal()
+        except ValueError:
+            day = int.from_bytes(hashlib.sha256(shift_id.encode()).digest()[:4], "big")
+        featured = titles[day % len(titles)]
+        pool = [s for s in saved["shows"] if s.get("game", GAME) == featured]
+        best = max(pool, key=lambda s: (s["wins"], s["score"]))
+        saved["featured_show"] = best["directory"]
         directory = root / "shows" / best["directory"]
         failures = []
         for name in platforms:

@@ -55,9 +55,7 @@ def say(text):
     return pcm
 
 
-def frame(env, state, turn, points, caption):
-    world = env.unwrapped
-    row, col, passenger, dest = map(int, world.decode(state))
+def canvas(title, caption):
     picture = Image.new("RGB", SIZE, INK)
     draw = ImageDraw.Draw(picture)
 
@@ -66,8 +64,23 @@ def frame(env, state, turn, points, caption):
 
     label(50, 28, "APEX", 44, LIME, True)
     label(204, 42, "AI GAMING CHARACTER", 22)
-    label(888, 38, "NIGHT SHIFT   /   TAXI", 24, MUTED, True)
+    label(888, 38, title, 24, MUTED, True)
     draw.line((50, 100, 1230, 100), fill="#34394f", width=2)
+    draw.rounded_rectangle((50, 580, 1230, 684), radius=16, fill="#20273b")
+    label(78, 595, "APEX  /  SYNTHETIC VOICE", 16, LIME, True)
+    label(78, 629, caption, 27)
+    return picture
+
+
+def frame(env, state, turn, points, caption):
+    world = env.unwrapped
+    row, col, passenger, dest = map(int, world.decode(state))
+    picture = canvas("NIGHT SHIFT   /   TAXI", caption)
+    draw = ImageDraw.Draw(picture)
+
+    def label(x, y, value, size, color=PAPER, bold=False):
+        draw.text((x, y), value, fill=color, font=font(size, bold))
+
     # All walls, stops and player positions come from the active environment.
     x0, y0, cell = 66, 130, 84
     for r in range(5):
@@ -115,9 +128,6 @@ def frame(env, state, turn, points, caption):
     label(550, 473, ACTIONS[turn.action].upper() if turn else "DISPATCHED", 25)
     label(895, 442, "FARE SCORE", 17, MUTED)
     label(895, 473, str(points), 25)
-    draw.rounded_rectangle((50, 580, 1230, 684), radius=16, fill="#20273b")
-    label(78, 595, "APEX  /  SYNTHETIC VOICE", 16, LIME, True)
-    label(78, 629, caption, 27)
     return picture
 
 
