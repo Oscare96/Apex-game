@@ -1,8 +1,10 @@
 import os
+
 from fastapi.testclient import TestClient
+
 from app.main import app
-from app.simulation import DrivingWorld, run_episode
 from app.personality import comment
+from app.simulation import DrivingWorld, run_episode
 
 client = TestClient(app)
 

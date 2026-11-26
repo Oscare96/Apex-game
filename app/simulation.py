@@ -1,7 +1,8 @@
 """Deterministic bounded synthetic driving simulator; no commercial-game integration."""
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from math import hypot
 from random import Random
+
 
 @dataclass
 class State:

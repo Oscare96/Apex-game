@@ -1,9 +1,11 @@
 """Research API. No real-game controls or social publishing."""
 import os
+
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
+
+from .personality import DISCLOSURE, comment
 from .simulation import run_episode
-from .personality import comment, DISCLOSURE
 
 app = FastAPI(title="APEX Research API", version="0.1.0")
 
